@@ -32,7 +32,7 @@ func TestReverseGame2(t *testing.T) {
 	agent := ai.NewAgent(2, 2)
 
 	for i := 0; i < 10; i++ {
-		legalMoves := game.GenerateLegalMoves()
+		legalMoves := game.GenerateFirstSteps()
 		r := random.Intn(len(legalMoves))
 		game.AcceptMove(legalMoves[r])
 		agent.AcceptMove(legalMoves[r])

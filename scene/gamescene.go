@@ -248,13 +248,6 @@ func (g *GameScene) UpdateAnimations() {
 			g.UIState = WAITING_FOR_PLAYER_MOVE
 		} else {
 			g.UIState = WAITING_FOR_OPP_MOVE
-
-			// TODO: this should be moved to immediately after the player clicks the "confirm move"
-			// button so we can do the calculations concurrently with the animations
-			go func() {
-				move, _ := g.Agent.MakeMove()
-				g.MoveChan <- move
-			}()
 		}
 
 	} else {
@@ -290,6 +283,10 @@ func (g *GameScene) UpdatePlayerActions() {
 				g.EventsToAnimate = g.Game.AcceptMove(move)
 				g.selectedCoords = make([]core.MapCoord, 0, 2)
 				g.UIState = WAITING_FOR_PLAYER_ANIMIMATION
+				go func() {
+					move, _ := g.Agent.MakeMove()
+					g.MoveChan <- move
+				}()
 			}
 		}
 	}
@@ -305,38 +302,24 @@ func (g *GameScene) UpdateGameOverActions() {
 }
 
 func (g *GameScene) Update() {
-	/*
-		if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-			for i := 0; i < core.MAP_WIDTH; i++ {
-				for j := i % 2; j < 2*core.MAP_HEIGHT; j += 2 {
-					fmt.Printf("(%d,%d) reversed %t hasCreature %t\n", i, j, g.Game.Map.Tiles[i][j].Reversed, g.Game.Map.Tiles[i][j].HasCreature)
-				}
-			}
-		}*/
-
-	// TODO: this block should move into the waiting for animation and we should
-	// start the goroutine while the player's animations are playing
-	select {
-	case m := <-g.MoveChan:
-		t1 := g.TileSprites[m.First.X][m.First.Y]
-		var t2 *ui.TileSprite = nil
-		if m.Second.X > 0 {
-			t2 = g.TileSprites[m.Second.X][m.Second.Y]
-		}
-
-		g.OngoingAnimation = animation.NewTileHighlightAnimation(t1, t2)
-
-		g.EventsToAnimate = g.Game.AcceptMove(m)
-		g.UIState = WAITING_FOR_PLAYER_ANIMIMATION
-	default:
-	}
 
 	if g.UIState == WAITING_FOR_PLAYER_ANIMIMATION {
 		g.UpdateAnimations()
 	} else if g.UIState == WAITING_FOR_PLAYER_MOVE {
 		g.UpdatePlayerActions()
 	} else if g.UIState == WAITING_FOR_OPP_MOVE {
-
+		select {
+		case m := <-g.MoveChan:
+			t1 := g.TileSprites[m.First.X][m.First.Y]
+			var t2 *ui.TileSprite = nil
+			if m.Second.X > 0 {
+				t2 = g.TileSprites[m.Second.X][m.Second.Y]
+			}
+			g.OngoingAnimation = animation.NewTileHighlightAnimation(t1, t2)
+			g.EventsToAnimate = g.Game.AcceptMove(m)
+			g.UIState = WAITING_FOR_PLAYER_ANIMIMATION
+		default:
+		}
 	} else if g.UIState == GAME_OVER {
 		g.UpdateGameOverActions()
 	}

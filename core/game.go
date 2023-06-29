@@ -11,15 +11,16 @@ type GameMove struct {
 }
 
 type Game struct {
-	Map           *Map
-	EastCreatures []*Creature
-	WestCreatures []*Creature
-	EastHealth    int
-	WestHealth    int
-	CurrentTurn   Alignment
-	Rand          *rand.Rand
-	Seed          int64
-	AllCoords     []MapCoord
+	Map               *Map
+	EastCreatures     []*Creature
+	WestCreatures     []*Creature
+	EastHealth        int
+	WestHealth        int
+	CurrentTurn       Alignment
+	Rand              *rand.Rand
+	Seed              int64
+	AllCoords         []MapCoord
+	AllUncheckedMoves []GameMove
 }
 
 func NewGameWithSeed(seed int64) *Game {
@@ -33,16 +34,33 @@ func NewGameWithSeed(seed int64) *Game {
 		}
 	}
 
+	moves := make([]GameMove, 0, len(allCoords)*len(allCoords))
+	for i := 0; i < len(allCoords); i++ {
+		ci := allCoords[i]
+		for j := i + 1; j < len(allCoords); j++ {
+			cj := allCoords[j]
+			moves = append(moves, GameMove{
+				First:  ci,
+				Second: cj,
+			})
+		}
+		moves = append(moves, GameMove{
+			First:  ci,
+			Second: MapCoord{-1, -1},
+		})
+	}
+
 	return &Game{
-		Map:           NewMap(random),
-		EastCreatures: GetInitialRandomCreatures(EAST, random),
-		WestCreatures: GetInitialRandomCreatures(WEST, random),
-		EastHealth:    50,
-		WestHealth:    50,
-		CurrentTurn:   EAST,
-		Rand:          random,
-		Seed:          seed,
-		AllCoords:     allCoords,
+		Map:               NewMap(random),
+		EastCreatures:     GetInitialRandomCreatures(EAST, random),
+		WestCreatures:     GetInitialRandomCreatures(WEST, random),
+		EastHealth:        50,
+		WestHealth:        50,
+		CurrentTurn:       EAST,
+		Rand:              random,
+		Seed:              seed,
+		AllCoords:         allCoords,
+		AllUncheckedMoves: moves,
 	}
 }
 
@@ -449,29 +467,103 @@ func (g *Game) AcceptMove(move GameMove) []GameEvent {
 	return events
 }
 
-func (g *Game) GenerateLegalMoves() []GameMove {
+func (g *Game) IsMoveLocationsEmpty(m GameMove) bool {
+	return ((m.First.X == -1 && m.First.Y == -1) || (!g.Map.Tiles[m.First.X][m.First.Y].HasCreature)) &&
+		((m.Second.X == -1 && m.Second.Y == -1) || !g.Map.Tiles[m.Second.X][m.Second.Y].HasCreature)
+}
+
+func (g *Game) GenerateFirstSteps() []GameMove {
 	moves := make([]GameMove, 0)
 	for i := 0; i < len(g.AllCoords); i++ {
 		ci := g.AllCoords[i]
 		if g.Map.Tiles[ci.X][ci.Y].HasCreature {
 			continue
 		}
-		/*
-			for j := i + 1; j < len(g.AllCoords); j++ {
-				cj := g.AllCoords[j]
-				if g.Map.Tiles[cj.X][cj.Y].HasCreature {
-					continue
-				}
-				moves = append(moves, GameMove{
-					First:  ci,
-					Second: cj,
-				})
-			}*/
 		moves = append(moves, GameMove{
 			First:  ci,
 			Second: MapCoord{-1, -1},
 		})
 	}
 
+	return moves
+}
+
+func (g *Game) GenerateLegalMoves() []GameMove {
+	moves := make([]GameMove, 0, len(g.AllCoords))
+	for i := 0; i < len(g.AllCoords); i++ {
+		ci := g.AllCoords[i]
+		if g.Map.Tiles[ci.X][ci.Y].HasCreature {
+			continue
+		}
+		for j := i + 1; j < len(g.AllCoords); j++ {
+			cj := g.AllCoords[j]
+			if g.Map.Tiles[cj.X][cj.Y].HasCreature {
+				continue
+			}
+			moves = append(moves, GameMove{
+				First:  ci,
+				Second: cj,
+			})
+		}
+		moves = append(moves, GameMove{
+			First:  ci,
+			Second: MapCoord{-1, -1},
+		})
+	}
+	return moves
+}
+
+func (g *Game) GenerateLegalMovesWithExclusions(m GameMove) []GameMove {
+	moves := make([]GameMove, 0, len(g.AllCoords))
+	for i := 0; i < len(g.AllCoords); i++ {
+		ci := g.AllCoords[i]
+		if g.Map.Tiles[ci.X][ci.Y].HasCreature {
+			continue
+		}
+		if (ci.X == m.First.X && ci.Y == m.First.Y) || (ci.X == m.Second.X && ci.Y == m.Second.Y) {
+			continue
+		}
+
+		for j := i + 1; j < len(g.AllCoords); j++ {
+			cj := g.AllCoords[j]
+			if g.Map.Tiles[cj.X][cj.Y].HasCreature {
+				continue
+			}
+			if (cj.X == m.First.X && cj.Y == m.First.Y) || (cj.X == m.Second.X && cj.Y == m.Second.Y) {
+				continue
+			}
+			moves = append(moves, GameMove{
+				First:  ci,
+				Second: cj,
+			})
+		}
+		moves = append(moves, GameMove{
+			First:  ci,
+			Second: MapCoord{-1, -1},
+		})
+	}
+	return moves
+}
+
+func (g *Game) GenerateNextSteps(m MapCoord) []GameMove {
+	if m.X == -1 && m.Y == -1 {
+		return []GameMove{}
+	}
+
+	moves := make([]GameMove, 0, len(g.AllCoords)+1)
+	for i := 0; i < len(g.AllCoords); i++ {
+		ci := g.AllCoords[i]
+		if g.Map.Tiles[ci.X][ci.Y].HasCreature || (ci.X == m.X && ci.Y == m.Y) {
+			continue
+		}
+		moves = append(moves, GameMove{
+			First:  m,
+			Second: ci,
+		})
+	}
+	moves = append(moves, GameMove{
+		First:  m,
+		Second: MapCoord{-1, -1},
+	})
 	return moves
 }

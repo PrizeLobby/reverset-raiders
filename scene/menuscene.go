@@ -8,8 +8,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/prizelobby/reverset-raiders/res"
 	"github.com/prizelobby/reverset-raiders/ui"
-	"github.com/tinne26/etxt"
 )
+
+const VERSION_STRING = "version 1.0.1"
 
 const CENTER = 480
 const TITLE_Y_CENTER = 100
@@ -41,9 +42,8 @@ func (m *MenuScene) Update() {
 
 func (m *MenuScene) Draw(scaledScreen *ui.ScaledScreen) {
 	scaledScreen.DrawImage(res.GetImage("title"), &ebiten.DrawImageOptions{})
-	scaledScreen.DrawTextWithAlign("Reverset Raiders", 48.0, CENTER, TITLE_Y_CENTER, color.Black, etxt.YCenter, etxt.XCenter)
-	scaledScreen.DrawTextWithAlign("New Game", 32.0, CENTER, NEW_GAME_Y_CENTER, color.Black, etxt.YCenter, etxt.XCenter)
-	scaledScreen.DrawTextWithAlign("Credits", 32.0, CENTER, CREDITS_Y_CENTER, color.Black, etxt.YCenter, etxt.XCenter)
-	// NOTE: quit doesn't really make sense for web export
-
+	scaledScreen.DrawTextCenteredAt("Reverset Raiders", 48.0, CENTER, TITLE_Y_CENTER, color.Black)
+	scaledScreen.DrawTextCenteredAt("New Game", 32.0, CENTER, NEW_GAME_Y_CENTER, color.Black)
+	scaledScreen.DrawTextCenteredAt("Credits", 32.0, CENTER, CREDITS_Y_CENTER, color.Black)
+	scaledScreen.DrawText(VERSION_STRING, 16.0, 862, 460, color.Black)
 }
